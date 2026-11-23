@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: TU_USUARIO_DOCKER/inventory-frontend:latest
+          image: jesxs7/inventory-frontend:latest
           ports:
             - containerPort: 80
           resources:
