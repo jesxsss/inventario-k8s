@@ -37,8 +37,26 @@ jobs:
             kubectl apply --validate=false --request-timeout=60s -f k8s/
             kubectl set image deployment/backend backend=$DOCKER_USER/inventory-backend:$CIRCLE_SHA1 --request-timeout=60s
             kubectl set image deployment/frontend frontend=$DOCKER_USER/inventory-frontend:$CIRCLE_SHA1 --request-timeout=60s
-            kubectl rollout status deployment/backend --timeout=180s --request-timeout=60s
-            kubectl rollout status deployment/frontend --timeout=180s --request-timeout=60s
+
+            for deploy in postgres backend frontend prometheus grafana; do
+              echo "Verificando despliegue de $deploy..."
+              READY="0"
+              for i in $(seq 1 18); do
+                READY=$(kubectl get deploy $deploy -o jsonpath='{.status.readyReplicas}' --request-timeout=30s 2>/dev/null || echo "0")
+                if [ "$READY" = "1" ]; then
+                  echo "$deploy listo (1/1)"
+                  break
+                fi
+                sleep 10
+              done
+              if [ "$READY" != "1" ]; then
+                echo "Error: $deploy no alcanzo el estado Ready en 180s"
+                kubectl get pods --request-timeout=30s || true
+                exit 1
+              fi
+            done
+
+            kubectl get pods --request-timeout=30s
 
 workflows:
   version: 2
