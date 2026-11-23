@@ -56,3 +56,6 @@ En **Project Settings > Environment Variables**:
    
     - <img width="953" height="574" alt="image" src="https://github.com/user-attachments/assets/5970193d-afc3-4e4c-a01d-39892dd2760a" />
 
+##grafana
+
+<img width="959" height="536" alt="image" src="https://github.com/user-attachments/assets/ade048b7-a5ee-457b-a9a9-64ae024dd877" />
