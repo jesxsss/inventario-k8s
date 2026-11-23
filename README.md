@@ -53,3 +53,6 @@ En **Project Settings > Environment Variables**:
   - Métricas PromQL:
     - `inventory_low_stock_items`
     - `sum by (event_type) (rate(inventory_events_total[5m])) * 60`
+   
+    - <img width="953" height="574" alt="image" src="https://github.com/user-attachments/assets/5970193d-afc3-4e4c-a01d-39892dd2760a" />
+
