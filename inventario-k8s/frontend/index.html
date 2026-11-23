@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>INVENTARIO // SISTEMA MONOCROMO</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #000000;
+      --muted: #555555;
+      --border: 1px solid #000000;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0 !important; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      padding: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      border-bottom: 2px solid var(--fg);
+      padding-bottom: 1rem;
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    h1 { font-size: 1.75rem; letter-spacing: 0.08em; text-transform: uppercase; }
+    .mono { font-family: 'Courier New', monospace; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .kpi-box { border: var(--border); padding: 1.25rem; }
+    .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .kpi-value { font-size: 2rem; font-weight: 700; margin-top: 0.5rem; }
+    .grid-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; }
+    form {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      border: var(--border);
+    }
+    input {
+      border: var(--border);
+      padding: 0.6rem;
+      background: var(--bg);
+      color: var(--fg);
+      font-size: 0.85rem;
+      width: 100%;
+    }
+    input:focus { outline: 2px solid var(--fg); }
+    button {
+      border: var(--border);
+      background: var(--fg);
+      color: var(--bg);
+      padding: 0.6rem 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    button:hover { background: var(--bg); color: var(--fg); }
+    button.outline { background: var(--bg); color: var(--fg); }
+    button.outline:hover { background: var(--fg); color: var(--bg); }
+    table { width: 100%; border-collapse: collapse; border: var(--border); }
+    th, td { border: var(--border); padding: 0.75rem; text-align: left; font-size: 0.85rem; }
+    th { background: var(--fg); color: var(--bg); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; }
+    tr.low-stock { background: #f2f2f2; font-weight: 700; }
+    .badge-alert {
+      background: var(--fg);
+      color: var(--bg);
+      padding: 0.15rem 0.4rem;
+      font-size: 0.7rem;
+      margin-left: 0.4rem;
+    }
+    .events-panel { border: var(--border); padding: 1rem; }
+    .events-panel h2 { font-size: 0.95rem; text-transform: uppercase; border-bottom: var(--border); padding-bottom: 0.5rem; margin-bottom: 0.75rem; }
+    .event-item { border-bottom: 1px dashed #000; padding: 0.5rem 0; font-size: 0.8rem; }
+    @media (max-width: 900px) {
+      .grid-layout { grid-template-columns: 1fr; }
+      form { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>SISTEMA DE INVENTARIO</h1>
+      <p class="mono" style="font-size:0.8rem;">KUBERNETES // GCP FREE TIER // GRAFANA TELEMETRY</p>
+    </div>
+    <button class="outline" onclick="loadAll()">ACTUALIZAR</button>
+  </header>
+
+  <section class="kpis">
+    <div class="kpi-box">
+      <div class="kpi-label">Total Referencias (SKU)</div>
+      <div class="kpi-value mono" id="kpi-skus">0</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-label">Unidades en Almacén</div>
+      <div class="kpi-value mono" id="kpi-units">0</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-label">Alertas Stock Mínimo</div>
+      <div class="kpi-value mono" id="kpi-alerts">0</div>
+    </div>
+  </section>
+
+  <form id="product-form">
+    <input type="text" id="sku" placeholder="SKU (ej. SKU-004)" required />
+    <input type="text" id="name" placeholder="Nombre del producto" required />
+    <input type="text" id="category" placeholder="Categoría" required />
+    <input type="number" id="quantity" placeholder="Stock inicial" min="0" required />
+    <input type="number" id="min_stock" placeholder="Stock mínimo" min="0" required />
+    <button type="submit">+ REGISTRAR</button>
+  </form>
+
+  <div class="grid-layout">
+    <div>
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Producto</th>
+            <th>Categoría</th>
+            <th>Stock</th>
+            <th>Movimientos</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="inventory-body"></tbody>
+      </table>
+    </div>
+
+    <aside class="events-panel">
+      <h2>Bitácora de Eventos (Grafana Stream)</h2>
+      <div id="events-list" class="mono"></div>
+    </aside>
+  </div>
+
+  <script>
+    async function loadAll() {
+      const [prodRes, evtRes] = await Promise.all([
+        fetch('/api/products'),
+        fetch('/api/events')
+      ]);
+      const products = await prodRes.json();
+      const events = await evtRes.json();
+
+      document.getElementById('kpi-skus').textContent = products.length;
+      document.getElementById('kpi-units').textContent = products.reduce((acc, p) => acc + p.quantity, 0);
+      document.getElementById('kpi-alerts').textContent = products.filter(p => p.quantity <= p.min_stock).length;
+
+      const tbody = document.getElementById('inventory-body');
+      tbody.innerHTML = products.map(p => {
+        const isLow = p.quantity <= p.min_stock;
+        return `
+          <tr class="${isLow ? 'low-stock' : ''}">
+            <td class="mono">${p.sku}</td>
+            <td>${p.name} ${isLow ? '<span class="badge-alert">BAJO</span>' : ''}</td>
+            <td>${p.category}</td>
+            <td class="mono">${p.quantity} / min:${p.min_stock}</td>
+            <td>
+              <button class="outline" onclick="updateStock(${p.id}, 1)">+1</button>
+              <button class="outline" onclick="updateStock(${p.id}, -1)">-1</button>
+            </td>
+            <td><button onclick="deleteProduct(${p.id})">X</button></td>
+          </tr>
+        `;
+      }).join('');
+
+      const eventsList = document.getElementById('events-list');
+      eventsList.innerHTML = events.map(e => `
+        <div class="event-item">
+          <strong>[${e.event_type}]</strong> ${e.product_sku} (${e.delta >= 0 ? '+' + e.delta : e.delta})<br/>
+          <span style="color:#555;font-size:0.7rem;">${new Date(e.created_at).toLocaleString()}</span>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('product-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sku: document.getElementById('sku').value,
+          name: document.getElementById('name').value,
+          category: document.getElementById('category').value,
+          quantity: document.getElementById('quantity').value,
+          min_stock: document.getElementById('min_stock').value,
+          unit_price: 0
+        })
+      });
+      e.target.reset();
+      loadAll();
+    });
+
+    async function updateStock(id, delta) {
+      await fetch(`/api/products/${id}/stock`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta })
+      });
+      loadAll();
+    }
+
+    async function deleteProduct(id) {
+      await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      loadAll();
+    }
+
+    loadAll();
+  </script>
+</body>
+</html>
