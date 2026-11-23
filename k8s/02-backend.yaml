@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: TU_USUARIO_DOCKER/inventory-backend:latest
+          image: jesxs7/inventory-backend:latest
           ports:
             - containerPort: 3000
           env:
