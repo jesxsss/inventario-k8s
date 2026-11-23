@@ -13,7 +13,7 @@ jobs:
           name: Build & Push Docker Images
           command: |
             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-            
+
             docker build -t $DOCKER_USER/inventory-backend:$CIRCLE_SHA1 ./backend
             docker build -t $DOCKER_USER/inventory-backend:latest ./backend
             docker push $DOCKER_USER/inventory-backend:$CIRCLE_SHA1
@@ -32,12 +32,13 @@ jobs:
 
             mkdir -p ~/.kube
             echo "$KUBECONFIG_BASE64" | base64 -d > ~/.kube/config
+            chmod 600 ~/.kube/config
 
-            kubectl apply -f k8s/
-            kubectl set image deployment/backend backend=$DOCKER_USER/inventory-backend:$CIRCLE_SHA1
-            kubectl set image deployment/frontend frontend=$DOCKER_USER/inventory-frontend:$CIRCLE_SHA1
-            kubectl rollout status deployment/backend
-            kubectl rollout status deployment/frontend
+            kubectl apply --validate=false --request-timeout=60s -f k8s/
+            kubectl set image deployment/backend backend=$DOCKER_USER/inventory-backend:$CIRCLE_SHA1 --request-timeout=60s
+            kubectl set image deployment/frontend frontend=$DOCKER_USER/inventory-frontend:$CIRCLE_SHA1 --request-timeout=60s
+            kubectl rollout status deployment/backend --timeout=180s --request-timeout=60s
+            kubectl rollout status deployment/frontend --timeout=180s --request-timeout=60s
 
 workflows:
   version: 2
